@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 220 15% 95%;
+    --foreground: 220 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 15%;
+
+    --primary: 220 15% 25%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 220 10% 88%;
+    --secondary-foreground: 220 15% 20%;
+
+    --muted: 220 10% 92%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 220 15% 90%;
+    --accent-foreground: 220 15% 20%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 15% 85%;
+    --input: 220 15% 85%;
+    --ring: 220 15% 40%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 98%;
+
+    --glass-bg: 0 0% 100%;
+    --glass-border: 220 15% 90%;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 220 10% 90%;
+
+    --card: 220 20% 15%;
+    --card-foreground: 220 10% 90%;
+
+    --popover: 220 20% 15%;
+    --popover-foreground: 220 10% 90%;
+
+    --primary: 220 10% 85%;
+    --primary-foreground: 220 20% 10%;
+
+    --secondary: 220 20% 20%;
+    --secondary-foreground: 220 10% 85%;
+
+    --muted: 220 20% 20%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 220 20% 25%;
+    --accent-foreground: 220 10% 85%;
+
+    --destructive: 0 70% 40%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 20% 25%;
+    --input: 220 20% 25%;
+    --ring: 220 10% 70%;
+
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 90% 55%;
+    --warning-foreground: 0 0% 10%;
+
+    --glass-bg: 220 20% 15%;
+    --glass-border: 220 20% 30%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-foreground min-h-screen;
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl;
+  }
+  
+  .glass-card-light {
+    @apply bg-white/60 backdrop-blur-xl border border-white/40 shadow-2xl;
+  }
+}

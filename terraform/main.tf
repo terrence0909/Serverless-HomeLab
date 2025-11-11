@@ -29,6 +29,61 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Add DynamoDB table for analytics
+resource "aws_dynamodb_table" "analytics" {
+  name           = "homelab-analytics"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "click_id"
+
+  attribute {
+    name = "click_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "slug"
+    type = "S"
+  }
+
+  # Global secondary index for querying by slug
+  global_secondary_index {
+    name               = "slug-index"
+    hash_key           = "slug"
+    projection_type    = "ALL"
+    read_capacity      = 5
+    write_capacity     = 5
+  }
+
+  tags = {
+    Project = "homelab"
+  }
+}
+
+# Add IAM policy for DynamoDB access
+resource "aws_iam_role_policy" "lambda_dynamodb" {
+  name = "homelab-lambda-dynamodb"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:Scan",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.analytics.arn,
+          "${aws_dynamodb_table.analytics.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+# UPDATED Lambda function with environment variable
 resource "aws_lambda_function" "homelab_api" {
   filename         = "lambda-function.zip"
   source_code_hash = filebase64sha256("lambda-function.zip")
@@ -38,6 +93,13 @@ resource "aws_lambda_function" "homelab_api" {
   runtime         = "nodejs18.x"
   memory_size     = 128
   timeout         = 30
+
+  # ADDED environment variable for analytics
+  environment {
+    variables = {
+      ANALYTICS_TABLE = aws_dynamodb_table.analytics.name
+    }
+  }
 }
 
 resource "aws_apigatewayv2_api" "homelab" {
@@ -87,6 +149,13 @@ resource "aws_apigatewayv2_route" "homelab_tools" {
 resource "aws_apigatewayv2_route" "homelab_go" {
   api_id    = aws_apigatewayv2_api.homelab.id
   route_key = "GET /go/{proxy}"
+  target    = "integrations/${aws_apigatewayv2_integration.homelab.id}"
+}
+
+# ADD analytics route to API Gateway
+resource "aws_apigatewayv2_route" "homelab_analytics" {
+  api_id    = aws_apigatewayv2_api.homelab.id
+  route_key = "GET /analytics"
   target    = "integrations/${aws_apigatewayv2_integration.homelab.id}"
 }
 

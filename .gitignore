@@ -25,3 +25,12 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Terraform & Lambda specific
+*.zip
+*.backup
+test-*
+response.json
+payload.json
+terraform.tfstate*
+.terraform/
