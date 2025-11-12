@@ -5,6 +5,7 @@ import { SystemStatus } from "@/components/SystemStatus";
 import { UrlShortener } from "@/components/UrlShortener";
 import { ServiceStatus } from "@/components/ServiceStatus";
 import { ApiEndpoints } from "@/components/ApiEndpoints";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Update this URL to your new API Gateway endpoint
@@ -110,8 +111,8 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Original Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <SystemStatus 
             cost={systemStatus.cost} 
             uptime={systemStatus.uptime} 
@@ -120,6 +121,9 @@ const Index = () => {
           <ServiceStatus services={services} />
           <ApiEndpoints endpoints={endpoints} />
         </div>
+
+        {/* NEW: Analytics Dashboard */}
+        <AnalyticsDashboard />
 
         {/* Footer */}
         <div className="mt-8 text-center">
