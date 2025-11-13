@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Zap, TrendingUp, DollarSign, Database, Loader2, AlertCircle, BarChart3, MousePointer, Link2, Users } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Zap, TrendingUp, DollarSign, Database, Loader2, AlertCircle, BarChart3, MousePointer, Link2, Users, Plus } from "lucide-react";
 
 const API_URL = "https://r0srse2nv0.execute-api.us-east-1.amazonaws.com";
 
@@ -60,6 +60,104 @@ interface AnalyticsData {
   timestamp: string;
 }
 
+interface CreateUrlModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}
+
+// Create URL Modal Component
+const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => {
+  const [shortUrl, setShortUrl] = useState("");
+  const [longUrl, setLongUrl] = useState("");
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: async (urlData: { shortUrl: string; longUrl: string }) => {
+      const response = await fetch(`${API_URL}/links`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(urlData),
+      });
+      if (!response.ok) throw new Error("Failed to create URL");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["links"] });
+      setShortUrl("");
+      setLongUrl("");
+      onCreated();
+      onClose();
+    },
+  });
+
+  const handleCreate = () => {
+    if (!shortUrl || !longUrl) return;
+    createMutation.mutate({ shortUrl, longUrl });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="glass-card p-6 rounded-xl border border-slate-700/50 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-white mb-4">Create Short URL</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-slate-300 mb-2 block">Short Code</label>
+            <input
+              type="text"
+              value={shortUrl}
+              onChange={(e) => setShortUrl(e.target.value)}
+              placeholder="my-project"
+              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="text-sm text-slate-300 mb-2 block">Destination URL</label>
+            <input
+              type="url"
+              value={longUrl}
+              onChange={(e) => setLongUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={createMutation.isPending || !shortUrl || !longUrl}
+            className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 rounded-lg text-white transition-colors flex items-center justify-center gap-2"
+          >
+            {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Create
+          </button>
+        </div>
+
+        {createMutation.isError && (
+          <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+            <p className="text-red-300 text-sm">
+              Error: {createMutation.error.message}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Mock component placeholders (replace with real components)
 const SystemStatus = ({ cost, uptime }: SystemStatusProps) => (
   <div className="glass-card p-6 rounded-xl border border-slate-700/50">
@@ -85,6 +183,8 @@ const UrlShortener = ({ links }: UrlShortenerProps) => (
         <a
           key={link.shortUrl}
           href={link.longUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="px-4 py-3 bg-slate-800/50 hover:bg-slate-700 rounded-lg text-center text-sm font-medium text-slate-200 transition-colors duration-200"
         >
           {link.title}
@@ -232,8 +332,8 @@ const MetricCard = ({ icon: Icon, label, value, color }: MetricCardProps) => (
   </div>
 );
 
-// Hero Header Component
-const HeroHeader = () => (
+// Updated Hero Header Component with Create Button
+const HeroHeader = ({ onAddClick }: { onAddClick: () => void }) => (
   <div className="relative mb-12 overflow-hidden">
     {/* Animated background gradient */}
     <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 blur-3xl" />
@@ -251,11 +351,19 @@ const HeroHeader = () => (
         🚀 Tshepo's Homelab
       </h1>
       
-      <p className="text-lg md:text-xl text-slate-400 mb-2">
+      <p className="text-lg md:text-xl text-slate-400 mb-6">
         Personal cloud platform powered by AWS Lambda & DynamoDB
       </p>
       
-      <div className="text-sm text-slate-500">
+      <button
+        onClick={onAddClick}
+        className="px-6 py-3 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-medium transition-colors flex items-center gap-2 mx-auto"
+      >
+        <Plus className="w-4 h-4" />
+        Add New Short URL
+      </button>
+      
+      <div className="text-sm text-slate-500 mt-4">
         Running since Nov 2025 • Uptime monitoring active
       </div>
     </div>
@@ -286,6 +394,9 @@ const ErrorState = ({ error }: { error: Error }) => (
 
 // Main Component
 const Index = () => {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+
   const { data: linksData, isLoading: linksLoading, error: linksError } = useQuery({
     queryKey: ["links"],
     queryFn: async () => {
@@ -303,7 +414,7 @@ const Index = () => {
       if (!response.ok) throw new Error("Failed to fetch analytics");
       return response.json();
     },
-    refetchInterval: 15000, // Refresh analytics more frequently
+    refetchInterval: 15000,
   });
 
   // Static data (fallbacks)
@@ -356,9 +467,16 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Hero Header */}
-        <HeroHeader />
+        <HeroHeader onAddClick={() => setIsCreateModalOpen(true)} />
 
-        {/* Top Metrics Bar - Updated with real analytics data */}
+        {/* Create URL Modal */}
+        <CreateUrlModal 
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={() => console.log("URL created!")}
+        />
+
+        {/* Top Metrics Bar */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           <MetricCard 
             icon={Zap} 
@@ -396,7 +514,7 @@ const Index = () => {
             <UrlShortener links={urlLinks} />
           </div>
 
-          {/* Analytics Dashboard - Now with real data */}
+          {/* Analytics Dashboard */}
           <div>
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <span className="text-2xl">📈</span> Analytics

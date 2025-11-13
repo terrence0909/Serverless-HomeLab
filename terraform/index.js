@@ -24,16 +24,25 @@ exports.handler = async (event) => {
         if (path === '/test-dynamodb') {
             const { DynamoDBClient, ListTablesCommand } = require('@aws-sdk/client-dynamodb');
             const client = new DynamoDBClient({ region: 'us-east-1' });
-            const tableName = process.env.ANALYTICS_TABLE;
+            const analyticsTable = process.env.ANALYTICS_TABLE;
+            const customUrlsTable = process.env.CUSTOM_URLS_TABLE;
             const tablesResult = await client.send(new ListTablesCommand({}));
             
             return {
                 statusCode: 200,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                },
                 body: JSON.stringify({
                     success: true,
                     message: "🎉 DynamoDB Connection Successful!",
-                    table: tableName,
+                    tables: {
+                        analytics: analyticsTable,
+                        custom_urls: customUrlsTable
+                    },
                     availableTables: tablesResult.TableNames,
                     sdk: "AWS SDK v3"
                 })
@@ -93,7 +102,7 @@ exports.handler = async (event) => {
             };
         }
         
-        // CREATE NEW SHORT URL ENDPOINT (POST)
+        // CREATE NEW SHORT URL ENDPOINT (POST) - UPDATED WITH DYNAMODB STORAGE
         if (path === '/links' && httpMethod === 'POST') {
             let body;
             try {
@@ -120,24 +129,77 @@ exports.handler = async (event) => {
                 };
             }
             
-            // In a real implementation, you'd save this to DynamoDB
-            // For now, just return success
-            return {
-                statusCode: 200,
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
-                },
-                body: JSON.stringify({
-                    success: true,
-                    message: "Short URL created",
-                    shortUrl: shortUrl,
-                    longUrl: longUrl,
-                    shortLink: `https://${event.requestContext?.domainName}/go/${shortUrl}`
-                })
+            // Check if short URL already exists in hardcoded URLs
+            if (shortUrls[shortUrl]) {
+                return {
+                    statusCode: 400,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: false,
+                        error: "Short URL already exists in system URLs"
+                    })
+                };
+            }
+            
+            // Save to DynamoDB
+            const { DynamoDBClient, PutItemCommand } = require('@aws-sdk/client-dynamodb');
+            const { marshall } = require('@aws-sdk/util-dynamodb');
+            
+            const client = new DynamoDBClient({ region: 'us-east-1' });
+            
+            const urlData = {
+                shortUrl: shortUrl,
+                longUrl: longUrl,
+                createdAt: new Date().toISOString(),
+                clicks: 0
             };
+            
+            try {
+                await client.send(new PutItemCommand({
+                    TableName: process.env.CUSTOM_URLS_TABLE,
+                    Item: marshall(urlData),
+                    ConditionExpression: "attribute_not_exists(shortUrl)" // Prevent overwrites
+                }));
+                
+                return {
+                    statusCode: 200,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: true,
+                        message: "Short URL created",
+                        shortUrl: shortUrl,
+                        longUrl: longUrl,
+                        shortLink: `https://${event.requestContext?.domainName}/go/${shortUrl}`
+                    })
+                };
+            } catch (error) {
+                if (error.name === 'ConditionalCheckFailedException') {
+                    return {
+                        statusCode: 400,
+                        headers: { 
+                            "Content-Type": "application/json", 
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                            "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        },
+                        body: JSON.stringify({
+                            success: false,
+                            error: "Short URL already exists"
+                        })
+                    };
+                }
+                throw error;
+            }
         }
         
         // CORS PREFLIGHT HANDLER
@@ -154,7 +216,7 @@ exports.handler = async (event) => {
             };
         }
         
-        // URL Shortener - WITH CLICK TRACKING (FIXED VERSION)
+        // URL Shortener - WITH CLICK TRACKING (UPDATED TO CHECK CUSTOM URLS)
         if (path.startsWith('/go/')) {
             // Extract the code from the path (works for both /go/{code} and /go/{proxy})
             let shortCode = path.substring(4); // Remove '/go/'
@@ -166,7 +228,13 @@ exports.handler = async (event) => {
             
             console.log('URL Shortener: code=', shortCode, 'path=', path);
             
-            const destination = shortUrls[shortCode];
+            // Check hardcoded URLs first
+            let destination = shortUrls[shortCode];
+            
+            // If not found in hardcoded, check custom URLs in DynamoDB
+            if (!destination) {
+                destination = await getCustomUrl(shortCode);
+            }
             
             if (destination) {
                 // TRACK THE CLICK
@@ -195,6 +263,23 @@ exports.handler = async (event) => {
             }
         }
         
+        // LINKS ENDPOINT - UPDATED TO INCLUDE CUSTOM URLS
+        if (path === '/links') {
+            const customUrls = await getAllCustomUrls();
+            const allUrls = { ...shortUrls, ...customUrls };
+            
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                body: JSON.stringify({
+                    available_short_urls: allUrls,
+                    usage: "Visit /go/{code} to redirect",
+                    example: "/go/github → https://github.com",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+        
         // STATUS ENDPOINT
         if (path === '/status') {
             return {
@@ -211,20 +296,6 @@ exports.handler = async (event) => {
                         response_time: "< 100ms",
                         availability: "99.95%"
                     },
-                    timestamp: new Date().toISOString()
-                })
-            };
-        }
-        
-        // LINKS ENDPOINT
-        if (path === '/links') {
-            return {
-                statusCode: 200,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-                body: JSON.stringify({
-                    available_short_urls: shortUrls,
-                    usage: "Visit /go/{code} to redirect",
-                    example: "/go/github → https://github.com",
                     timestamp: new Date().toISOString()
                 })
             };
@@ -337,6 +408,56 @@ async function trackClick(shortCode, event) {
         console.log('Click tracked:', shortCode);
     } catch (error) {
         console.error('Failed to track click:', error);
+    }
+}
+
+// GET CUSTOM URL FROM DYNAMODB
+async function getCustomUrl(shortUrl) {
+    const { DynamoDBClient, GetItemCommand } = require('@aws-sdk/client-dynamodb');
+    const { unmarshall } = require('@aws-sdk/util-dynamodb');
+    
+    const client = new DynamoDBClient({ region: 'us-east-1' });
+    
+    try {
+        const result = await client.send(new GetItemCommand({
+            TableName: process.env.CUSTOM_URLS_TABLE,
+            Key: { shortUrl: { S: shortUrl } }
+        }));
+        
+        if (result.Item) {
+            const item = unmarshall(result.Item);
+            return item.longUrl;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting custom URL:', error);
+        return null;
+    }
+}
+
+// GET ALL CUSTOM URLS FROM DYNAMODB
+async function getAllCustomUrls() {
+    const { DynamoDBClient, ScanCommand } = require('@aws-sdk/client-dynamodb');
+    const { unmarshall } = require('@aws-sdk/util-dynamodb');
+    
+    const client = new DynamoDBClient({ region: 'us-east-1' });
+    
+    try {
+        const result = await client.send(new ScanCommand({
+            TableName: process.env.CUSTOM_URLS_TABLE
+        }));
+        
+        const customUrls = {};
+        if (result.Items) {
+            result.Items.forEach(item => {
+                const url = unmarshall(item);
+                customUrls[url.shortUrl] = url.longUrl;
+            });
+        }
+        return customUrls;
+    } catch (error) {
+        console.error('Error getting custom URLs:', error);
+        return {};
     }
 }
 
