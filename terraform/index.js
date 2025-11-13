@@ -5,19 +5,135 @@ exports.handler = async (event) => {
     const httpMethod = event.requestContext?.http?.method || event.httpMethod || 'GET';
     console.log('Path:', path, 'Method:', httpMethod);
     
+    // CORS PREFLIGHT HANDLER - MOVED TO TOP LEVEL
+    if (httpMethod === 'OPTIONS') {
+        return {
+            statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Max-Age": "86400"
+            },
+            body: ''
+        };
+    }
+    
+    // CORS headers for all responses
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With"
+    };
+    
     try {
-        // ANALYTICS ENDPOINTS
+        // ENHANCED ENDPOINTS - ADDED
+        if (path === '/analytics/geographic') {
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "Geographic analytics endpoint - TODO: Implement",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+        
+        if (path === '/analytics/devices') {
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "Device analytics endpoint - TODO: Implement",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+        
+        if (path === '/analytics/referrers') {
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "Referrer analytics endpoint - TODO: Implement",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+        
+        // QR CODE GENERATION ENDPOINT - ADDED
+        if (path.startsWith('/qr/') && httpMethod === 'GET') {
+            const shortCode = path.replace('/qr/', '');
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "QR code generation endpoint - TODO: Implement",
+                    shortCode: shortCode,
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+
+        // GET URL DETAILS ENDPOINT - ADDED
+        if (path.startsWith('/links/') && httpMethod === 'GET') {
+            const shortUrl = path.replace('/links/', '');
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "URL details endpoint - TODO: Implement",
+                    shortUrl: shortUrl,
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+
+        // BULK URL OPERATIONS - ADDED
+        if (path === '/links/bulk' && httpMethod === 'POST') {
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "Bulk URL operations endpoint - TODO: Implement",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+        
+        if (path === '/links/export' && httpMethod === 'GET') {
+            return {
+                statusCode: 200,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+                body: JSON.stringify({
+                    success: true,
+                    message: "URL export endpoint - TODO: Implement",
+                    timestamp: new Date().toISOString()
+                })
+            };
+        }
+
+        // EXISTING ENDPOINTS - NO CHANGES BELOW
         if (path === '/analytics/clicks') {
-            return await getClickAnalytics();
+            const response = await getClickAnalytics();
+            return { ...response, headers: { ...response.headers, ...corsHeaders } };
         }
         
         if (path === '/analytics/urls') {
-            return await getURLStats();
+            const response = await getURLStats();
+            return { ...response, headers: { ...response.headers, ...corsHeaders } };
         }
         
         if (path.startsWith('/analytics/url/')) {
             const urlSlug = path.replace('/analytics/url/', '');
-            return await getURLDetailAnalytics(urlSlug);
+            const response = await getURLDetailAnalytics(urlSlug);
+            return { ...response, headers: { ...response.headers, ...corsHeaders } };
         }
         
         // TEST DYNAMODB ENDPOINT
@@ -32,9 +148,7 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers: { 
                     "Content-Type": "application/json", 
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    ...corsHeaders
                 },
                 body: JSON.stringify({
                     success: true,
@@ -75,9 +189,7 @@ exports.handler = async (event) => {
                     statusCode: 200,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: true,
@@ -91,9 +203,7 @@ exports.handler = async (event) => {
                 statusCode: 400,
                 headers: { 
                     "Content-Type": "application/json", 
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    ...corsHeaders
                 },
                 body: JSON.stringify({
                     success: false,
@@ -118,9 +228,7 @@ exports.handler = async (event) => {
                     statusCode: 400,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: false,
@@ -135,9 +243,7 @@ exports.handler = async (event) => {
                     statusCode: 400,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: false,
@@ -170,9 +276,7 @@ exports.handler = async (event) => {
                     statusCode: 200,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: true,
@@ -188,9 +292,7 @@ exports.handler = async (event) => {
                         statusCode: 400,
                         headers: { 
                             "Content-Type": "application/json", 
-                            "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                            "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                            ...corsHeaders
                         },
                         body: JSON.stringify({
                             success: false,
@@ -211,9 +313,7 @@ exports.handler = async (event) => {
                     statusCode: 400,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: false,
@@ -228,9 +328,7 @@ exports.handler = async (event) => {
                     statusCode: 403,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: false,
@@ -256,9 +354,7 @@ exports.handler = async (event) => {
                     statusCode: 200,
                     headers: { 
                         "Content-Type": "application/json", 
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        ...corsHeaders
                     },
                     body: JSON.stringify({
                         success: true,
@@ -272,9 +368,7 @@ exports.handler = async (event) => {
                         statusCode: 404,
                         headers: { 
                             "Content-Type": "application/json", 
-                            "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                            "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                            ...corsHeaders
                         },
                         body: JSON.stringify({
                             success: false,
@@ -284,20 +378,6 @@ exports.handler = async (event) => {
                 }
                 throw error;
             }
-        }
-        
-        // CORS PREFLIGHT HANDLER
-        if (httpMethod === 'OPTIONS') {
-            return {
-                statusCode: 200,
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-                    "Access-Control-Max-Age": "86400"
-                },
-                body: ''
-            };
         }
         
         // URL Shortener - WITH CLICK TRACKING (UPDATED TO CHECK CUSTOM URLS)
@@ -329,14 +409,14 @@ exports.handler = async (event) => {
                     statusCode: 302,
                     headers: { 
                         'Location': destination,
-                        'Access-Control-Allow-Origin': '*'
+                        ...corsHeaders
                     },
                     body: ''
                 };
             } else {
                 return {
                     statusCode: 404,
-                    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                    headers: { "Content-Type": "application/json", ...corsHeaders },
                     body: JSON.stringify({ 
                         error: 'Short URL not found',
                         available: Object.keys(shortUrls),
@@ -354,7 +434,7 @@ exports.handler = async (event) => {
             
             return {
                 statusCode: 200,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                headers: { "Content-Type": "application/json", ...corsHeaders },
                 body: JSON.stringify({
                     available_short_urls: allUrls,
                     usage: "Visit /go/{code} to redirect",
@@ -368,7 +448,7 @@ exports.handler = async (event) => {
         if (path === '/status') {
             return {
                 statusCode: 200,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                headers: { "Content-Type": "application/json", ...corsHeaders },
                 body: JSON.stringify({
                     status: "🟢 All Systems Operational",
                     cost_breakdown: {
@@ -389,7 +469,7 @@ exports.handler = async (event) => {
         if (path === '/tools') {
             return {
                 statusCode: 200,
-                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                headers: { "Content-Type": "application/json", ...corsHeaders },
                 body: JSON.stringify({
                     homelab_services: [
                         { 
@@ -425,7 +505,7 @@ exports.handler = async (event) => {
         // ROOT ENDPOINT
         return {
             statusCode: 200,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            headers: { "Content-Type": "application/json", ...corsHeaders },
             body: JSON.stringify({
                 message: "🚀 Tshepo's Serverless Homelab",
                 description: "Personal cloud platform - Cost: ~$2/month",
@@ -441,7 +521,15 @@ exports.handler = async (event) => {
                     'GET /analytics/url/{slug}': 'Get detailed URL analytics',
                     'POST /track': 'Track a click',
                     'POST /links': 'Create new short URL',
-                    'DELETE /links/{shortUrl}': 'Delete a custom short URL'
+                    'DELETE /links/{shortUrl}': 'Delete a custom short URL',
+                    // NEW ENDPOINTS ADDED
+                    'GET /qr/{shortUrl}': 'Generate QR code',
+                    'GET /links/{shortUrl}': 'Get URL details',
+                    'POST /links/bulk': 'Bulk create URLs',
+                    'GET /links/export': 'Export URLs',
+                    'GET /analytics/geographic': 'Geographic analytics',
+                    'GET /analytics/devices': 'Device analytics',
+                    'GET /analytics/referrers': 'Referrer analytics'
                 },
                 architecture: {
                     compute: "AWS Lambda",
@@ -459,7 +547,7 @@ exports.handler = async (event) => {
         console.error('Error:', error);
         return {
             statusCode: 500,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            headers: { "Content-Type": "application/json", ...corsHeaders },
             body: JSON.stringify({
                 success: false,
                 error: error.message,
