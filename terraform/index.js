@@ -27,6 +27,12 @@ exports.handler = async (event) => {
     };
     
     try {
+        // QR CODE GENERATION ENDPOINT - IMPLEMENTED
+        if (path.startsWith('/qr/') && httpMethod === 'GET') {
+            const shortCode = path.replace('/qr/', '');
+            return await generateQRCode(shortCode, event);
+        }
+
         // ENHANCED ENDPOINTS - ADDED
         if (path === '/analytics/geographic') {
             return {
@@ -59,21 +65,6 @@ exports.handler = async (event) => {
                 body: JSON.stringify({
                     success: true,
                     message: "Referrer analytics endpoint - TODO: Implement",
-                    timestamp: new Date().toISOString()
-                })
-            };
-        }
-        
-        // QR CODE GENERATION ENDPOINT - ADDED
-        if (path.startsWith('/qr/') && httpMethod === 'GET') {
-            const shortCode = path.replace('/qr/', '');
-            return {
-                statusCode: 200,
-                headers: { "Content-Type": "application/json", ...corsHeaders },
-                body: JSON.stringify({
-                    success: true,
-                    message: "QR code generation endpoint - TODO: Implement",
-                    shortCode: shortCode,
                     timestamp: new Date().toISOString()
                 })
             };
@@ -556,6 +547,61 @@ exports.handler = async (event) => {
         };
     }
 };
+
+// QR CODE GENERATION FUNCTION - ADDED
+async function generateQRCode(shortCode, event) {
+    try {
+        const QRCode = require('qrcode');
+        
+        // Build the full short URL
+        const domain = event.requestContext?.domainName || 'r0srse2nv0.execute-api.us-east-1.amazonaws.com';
+        const shortUrl = `https://${domain}/go/${shortCode}`;
+        
+        // Generate QR code as data URL
+        const qrCodeDataURL = await QRCode.toDataURL(shortUrl, {
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#3b82f6', // Blue color matching your theme
+                light: '#00000000' // Transparent background
+            }
+        });
+        
+        return {
+            statusCode: 200,
+            headers: { 
+                "Content-Type": "application/json", 
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With"
+            },
+            body: JSON.stringify({
+                success: true,
+                shortCode: shortCode,
+                shortUrl: shortUrl,
+                qrCode: qrCodeDataURL,
+                timestamp: new Date().toISOString()
+            })
+        };
+        
+    } catch (error) {
+        console.error('QR code generation error:', error);
+        return {
+            statusCode: 500,
+            headers: { 
+                "Content-Type": "application/json", 
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With"
+            },
+            body: JSON.stringify({
+                success: false,
+                error: "Failed to generate QR code",
+                message: error.message
+            })
+        };
+    }
+}
 
 // CLICK TRACKING FUNCTION
 async function trackClick(shortCode, event) {

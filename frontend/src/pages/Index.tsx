@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Zap, TrendingUp, DollarSign, Database, Loader2, AlertCircle, 
@@ -87,6 +87,20 @@ interface DeleteConfirmModalProps {
 interface TimeRange {
   label: string;
   value: string;
+}
+
+interface QRCodeData {
+  success: boolean;
+  shortCode: string;
+  shortUrl: string;
+  qrCode: string;
+  timestamp: string;
+}
+
+interface QRCodeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  url: UrlLink | null;
 }
 
 // Professional Chart Colors
@@ -192,6 +206,108 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
   }
   return null;
+};
+
+// QR Code Modal Component
+const QRCodeModal = ({ isOpen, onClose, url }: QRCodeModalProps) => {
+  const [qrCodeData, setQrCodeData] = useState<QRCodeData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && url) {
+      fetchQRCode(url.shortUrl);
+    }
+  }, [isOpen, url]);
+
+  const fetchQRCode = async (shortUrl: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/qr/${shortUrl}`);
+      const data = await response.json();
+      if (data.success) {
+        setQrCodeData(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch QR code:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const downloadQRCode = () => {
+    if (qrCodeData) {
+      const link = document.createElement('a');
+      link.href = qrCodeData.qrCode;
+      link.download = `qr-code-${qrCodeData.shortCode}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="glass-card p-6 rounded-xl border border-slate-700/50 w-full max-w-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <div className="p-2 bg-blue-500/20 rounded-lg">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
+            </div>
+            QR Code
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-400 mb-4" />
+            <p className="text-slate-400">Generating QR code...</p>
+          </div>
+        ) : qrCodeData ? (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center">
+              <img 
+                src={qrCodeData.qrCode} 
+                alt={`QR Code for ${qrCodeData.shortUrl}`}
+                className="w-48 h-48 rounded-lg border border-slate-600"
+              />
+              <p className="text-sm text-slate-400 mt-2 text-center">
+                Scan to visit: {qrCodeData.shortUrl}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={downloadQRCode}
+                className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <p className="text-slate-400">Failed to generate QR code</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 // Delete Confirmation Modal
@@ -366,68 +482,93 @@ const SystemStatus = ({ cost, uptime }: SystemStatusProps) => (
 // Enhanced UrlShortener with management options
 const UrlShortener = ({ links, onEdit, onDelete, isDeleting }: UrlShortenerProps) => {
   const [showAll, setShowAll] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [selectedUrl, setSelectedUrl] = useState<UrlLink | null>(null);
   const displayedLinks = showAll ? links : links.slice(0, 6);
 
+  const handleShowQRCode = (url: UrlLink) => {
+    setSelectedUrl(url);
+    setQrModalOpen(true);
+  };
+
   return (
-    <div className="glass-card p-6 rounded-xl border border-slate-700/50">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Quick Links</h3>
-        {links.length > 6 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            {showAll ? "Show Less" : `Show All (${links.length})`}
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {displayedLinks.map((link) => (
-          <div key={link.shortUrl} className="relative group">
-            <a
-              href={link.longUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block px-4 py-3 bg-slate-800/50 hover:bg-slate-700 rounded-lg text-center text-sm font-medium text-slate-200 transition-colors duration-200"
+    <>
+      <div className="glass-card p-6 rounded-xl border border-slate-700/50">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">Quick Links</h3>
+          {links.length > 6 && (
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
             >
-              {link.title}
-              {link.isCustom && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></span>
+              {showAll ? "Show Less" : `Show All (${links.length})`}
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {displayedLinks.map((link) => (
+            <div key={link.shortUrl} className="relative group">
+              <a
+                href={link.longUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block px-4 py-3 bg-slate-800/50 hover:bg-slate-700 rounded-lg text-center text-sm font-medium text-slate-200 transition-colors duration-200"
+              >
+                {link.title}
+                {link.isCustom && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></span>
+                )}
+              </a>
+              {link.isCustom && onEdit && onDelete && (
+                <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleShowQRCode(link);
+                    }}
+                    className="p-1 bg-green-500 hover:bg-green-600 rounded text-white transition-colors"
+                    title="QR Code"
+                  >
+                    <BarChart3 className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onEdit(link);
+                    }}
+                    className="p-1 bg-blue-500 hover:bg-blue-600 rounded text-white transition-colors"
+                    title="Edit URL"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onDelete(link.shortUrl);
+                    }}
+                    disabled={isDeleting === link.shortUrl}
+                    className="p-1 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 rounded text-white transition-colors"
+                    title="Delete URL"
+                  >
+                    {isDeleting === link.shortUrl ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
               )}
-            </a>
-            {link.isCustom && onEdit && onDelete && (
-              <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onEdit(link);
-                  }}
-                  className="p-1 bg-blue-500 hover:bg-blue-600 rounded text-white transition-colors"
-                  title="Edit URL"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onDelete(link.shortUrl);
-                  }}
-                  disabled={isDeleting === link.shortUrl}
-                  className="p-1 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 rounded text-white transition-colors"
-                  title="Delete URL"
-                >
-                  {isDeleting === link.shortUrl ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-3 h-3" />
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+
+      <QRCodeModal 
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        url={selectedUrl}
+      />
+    </>
   );
 };
 
