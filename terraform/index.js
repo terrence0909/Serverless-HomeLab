@@ -201,6 +201,90 @@ exports.handler = async (event) => {
                 throw error;
             }
         }
+
+        // DELETE SHORT URL ENDPOINT
+        if (path.startsWith('/links/') && httpMethod === 'DELETE') {
+            const shortUrl = path.replace('/links/', '');
+            
+            if (!shortUrl) {
+                return {
+                    statusCode: 400,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: false,
+                        error: "Missing shortUrl parameter"
+                    })
+                };
+            }
+
+            // Check if it's a system URL (cannot delete system URLs)
+            if (shortUrls[shortUrl]) {
+                return {
+                    statusCode: 403,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: false,
+                        error: "Cannot delete system URLs"
+                    })
+                };
+            }
+
+            // Delete from DynamoDB
+            const { DynamoDBClient, DeleteItemCommand } = require('@aws-sdk/client-dynamodb');
+            const { marshall } = require('@aws-sdk/util-dynamodb');
+            
+            const client = new DynamoDBClient({ region: 'us-east-1' });
+            
+            try {
+                await client.send(new DeleteItemCommand({
+                    TableName: process.env.CUSTOM_URLS_TABLE,
+                    Key: marshall({ shortUrl: shortUrl }),
+                    ConditionExpression: "attribute_exists(shortUrl)" // Only delete if exists
+                }));
+                
+                return {
+                    statusCode: 200,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: true,
+                        message: "Short URL deleted successfully",
+                        deletedUrl: shortUrl
+                    })
+                };
+            } catch (error) {
+                if (error.name === 'ConditionalCheckFailedException') {
+                    return {
+                        statusCode: 404,
+                        headers: { 
+                            "Content-Type": "application/json", 
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                            "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                        },
+                        body: JSON.stringify({
+                            success: false,
+                            error: "Short URL not found"
+                        })
+                    };
+                }
+                throw error;
+            }
+        }
         
         // CORS PREFLIGHT HANDLER
         if (httpMethod === 'OPTIONS') {
@@ -356,7 +440,8 @@ exports.handler = async (event) => {
                     'GET /analytics/urls': 'Get URL statistics',
                     'GET /analytics/url/{slug}': 'Get detailed URL analytics',
                     'POST /track': 'Track a click',
-                    'POST /links': 'Create new short URL'
+                    'POST /links': 'Create new short URL',
+                    'DELETE /links/{shortUrl}': 'Delete a custom short URL'
                 },
                 architecture: {
                     compute: "AWS Lambda",
