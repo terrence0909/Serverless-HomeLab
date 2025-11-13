@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Zap, TrendingUp, DollarSign, Database, Loader2, AlertCircle, BarChart3, MousePointer, Link2, Users, Plus } from "lucide-react";
+import { 
+  Zap, TrendingUp, DollarSign, Database, Loader2, AlertCircle, 
+  BarChart3, MousePointer, Link2, Users, Plus, Calendar,
+  Download, Filter, Trash2, Edit3
+} from "lucide-react";
 
 const API_URL = "https://r0srse2nv0.execute-api.us-east-1.amazonaws.com";
 
@@ -15,6 +19,7 @@ interface UrlLink {
   shortUrl: string;
   longUrl: string;
   title: string;
+  isCustom?: boolean;
 }
 
 interface Endpoint {
@@ -30,6 +35,8 @@ interface SystemStatusProps {
 
 interface UrlShortenerProps {
   links: UrlLink[];
+  onEdit?: (link: UrlLink) => void;
+  onDelete?: (shortUrl: string) => void;
 }
 
 interface ServiceStatusProps {
@@ -64,12 +71,18 @@ interface CreateUrlModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
+  editingUrl?: UrlLink | null;
+}
+
+interface TimeRange {
+  label: string;
+  value: string;
 }
 
 // Create URL Modal Component
-const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => {
-  const [shortUrl, setShortUrl] = useState("");
-  const [longUrl, setLongUrl] = useState("");
+const CreateUrlModal = ({ isOpen, onClose, onCreated, editingUrl }: CreateUrlModalProps) => {
+  const [shortUrl, setShortUrl] = useState(editingUrl?.shortUrl || "");
+  const [longUrl, setLongUrl] = useState(editingUrl?.longUrl || "");
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
@@ -81,7 +94,10 @@ const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => 
         },
         body: JSON.stringify(urlData),
       });
-      if (!response.ok) throw new Error("Failed to create URL");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create URL");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -103,7 +119,9 @@ const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="glass-card p-6 rounded-xl border border-slate-700/50 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-white mb-4">Create Short URL</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">
+          {editingUrl ? "Edit Short URL" : "Create Short URL"}
+        </h3>
         
         <div className="space-y-4">
           <div>
@@ -114,6 +132,7 @@ const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => 
               onChange={(e) => setShortUrl(e.target.value)}
               placeholder="my-project"
               className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              disabled={!!editingUrl}
             />
           </div>
           
@@ -142,7 +161,7 @@ const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => 
             className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 rounded-lg text-white transition-colors flex items-center justify-center gap-2"
           >
             {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Create
+            {editingUrl ? "Update" : "Create"}
           </button>
         </div>
 
@@ -158,7 +177,7 @@ const CreateUrlModal = ({ isOpen, onClose, onCreated }: CreateUrlModalProps) => 
   );
 };
 
-// Mock component placeholders (replace with real components)
+// System Status Component
 const SystemStatus = ({ cost, uptime }: SystemStatusProps) => (
   <div className="glass-card p-6 rounded-xl border border-slate-700/50">
     <h3 className="text-lg font-semibold text-white mb-4">System Status</h3>
@@ -175,24 +194,66 @@ const SystemStatus = ({ cost, uptime }: SystemStatusProps) => (
   </div>
 );
 
-const UrlShortener = ({ links }: UrlShortenerProps) => (
-  <div className="glass-card p-6 rounded-xl border border-slate-700/50">
-    <h3 className="text-lg font-semibold text-white mb-4">Quick Links</h3>
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-      {links.slice(0, 6).map((link) => (
-        <a
-          key={link.shortUrl}
-          href={link.longUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-3 bg-slate-800/50 hover:bg-slate-700 rounded-lg text-center text-sm font-medium text-slate-200 transition-colors duration-200"
-        >
-          {link.title}
-        </a>
-      ))}
+// Enhanced UrlShortener with management options
+const UrlShortener = ({ links, onEdit, onDelete }: UrlShortenerProps) => {
+  const [showAll, setShowAll] = useState(false);
+  const displayedLinks = showAll ? links : links.slice(0, 6);
+
+  return (
+    <div className="glass-card p-6 rounded-xl border border-slate-700/50">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Quick Links</h3>
+        {links.length > 6 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            {showAll ? "Show Less" : `Show All (${links.length})`}
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {displayedLinks.map((link) => (
+          <div key={link.shortUrl} className="relative group">
+            <a
+              href={link.longUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-3 bg-slate-800/50 hover:bg-slate-700 rounded-lg text-center text-sm font-medium text-slate-200 transition-colors duration-200"
+            >
+              {link.title}
+              {link.isCustom && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></span>
+              )}
+            </a>
+            {link.isCustom && onEdit && onDelete && (
+              <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onEdit(link);
+                  }}
+                  className="p-1 bg-blue-500 hover:bg-blue-600 rounded text-white"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDelete(link.shortUrl);
+                  }}
+                  className="p-1 bg-red-500 hover:bg-red-600 rounded text-white"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ServiceStatus = ({ services }: ServiceStatusProps) => (
   <div className="glass-card p-6 rounded-xl border border-slate-700/50">
@@ -204,7 +265,9 @@ const ServiceStatus = ({ services }: ServiceStatusProps) => (
             <p className="text-white font-medium">{service.name}</p>
             <p className="text-xs text-slate-400">{service.description}</p>
           </div>
-          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+          <div className={`w-2 h-2 rounded-full ${
+            service.status === "live" ? "bg-green-400" : "bg-yellow-400"
+          }`}></div>
         </div>
       ))}
     </div>
@@ -230,8 +293,18 @@ const ApiEndpoints = ({ endpoints }: ApiEndpointsProps) => (
   </div>
 );
 
-// Updated AnalyticsDashboard with real data
-const AnalyticsDashboard = ({ analyticsData }: { analyticsData?: AnalyticsData }) => {
+// Enhanced AnalyticsDashboard with matching filter style
+const AnalyticsDashboard = ({ 
+  analyticsData, 
+  timeRange, 
+  setTimeRange,
+  timeRanges 
+}: {
+  analyticsData?: AnalyticsData;
+  timeRange: string;
+  setTimeRange: (range: string) => void;
+  timeRanges: TimeRange[];
+}) => {
   if (!analyticsData) {
     return (
       <div className="glass-card p-6 rounded-xl border border-slate-700/50">
@@ -243,16 +316,67 @@ const AnalyticsDashboard = ({ analyticsData }: { analyticsData?: AnalyticsData }
 
   const topUrls = Object.entries(analyticsData.url_stats)
     .sort(([, a], [, b]) => b.count - a.count)
-    .slice(0, 5);
+    .slice(0, 10);
+
+  const handleExport = () => {
+    const headers = ["URL", "Clicks", "Last Click", "Percentage"];
+    const csvContent = [
+      headers.join(","),
+      ...topUrls.map(([url, stats]) => [
+        url,
+        stats.count,
+        new Date(stats.last_click).toISOString(),
+        `${Math.round((stats.count / analyticsData.total_clicks) * 100)}%`
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analytics-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="glass-card p-6 rounded-xl border border-slate-700/50">
-      <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-        <BarChart3 className="w-5 h-5" />
-        Analytics Overview
-      </h3>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <BarChart3 className="w-5 h-5" />
+          Analytics Overview
+        </h3>
+        
+        <div className="flex items-center gap-3">
+          {/* Updated Time Range Filter - matches Export button style */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 transition-colors">
+            <Filter className="w-4 h-4" />
+            <select 
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="bg-transparent border-none text-sm text-blue-300 focus:outline-none focus:ring-0 cursor-pointer"
+            >
+              {timeRanges.map((range) => (
+                <option key={range.value} value={range.value} className="bg-slate-800 text-white">
+                  {range.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={handleExport}
+            disabled={topUrls.length === 0}
+            className="flex items-center gap-2 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span className="text-sm">Export CSV</span>
+          </button>
+        </div>
+      </div>
       
-      {/* Analytics Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-slate-800/50 rounded-lg p-4 text-center">
           <MousePointer className="w-8 h-8 text-blue-400 mx-auto mb-2" />
@@ -281,24 +405,25 @@ const AnalyticsDashboard = ({ analyticsData }: { analyticsData?: AnalyticsData }
         </div>
       </div>
 
-      {/* Top Performing URLs */}
-      <div>
-        <h4 className="text-md font-semibold text-white mb-4">Top Performing Links</h4>
-        <div className="space-y-3">
+      <div className="bg-slate-800/30 rounded-lg p-4">
+        <h4 className="text-md font-semibold text-white mb-4">
+          Top Performing URLs ({timeRanges.find(r => r.value === timeRange)?.label})
+        </h4>
+        <div className="space-y-3 max-h-96 overflow-y-auto">
           {topUrls.map(([url, stats]) => (
-            <div key={url} className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+            <div key={url} className="flex items-center justify-between p-3 bg-slate-800/20 rounded-lg">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="text-blue-300 text-sm font-bold">{stats.count}</span>
                 </div>
-                <div>
-                  <p className="text-white font-medium capitalize">{url}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium capitalize truncate">{url}</p>
                   <p className="text-xs text-slate-400">
-                    Last click: {new Date(stats.last_click).toLocaleDateString()}
+                    Last click: {new Date(stats.last_click).toLocaleString()}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right flex-shrink-0">
                 <div className="text-green-400 text-sm font-semibold">{stats.count} clicks</div>
                 <div className="text-xs text-slate-400">
                   {Math.round((stats.count / analyticsData.total_clicks) * 100)}%
@@ -306,13 +431,16 @@ const AnalyticsDashboard = ({ analyticsData }: { analyticsData?: AnalyticsData }
               </div>
             </div>
           ))}
+          {topUrls.length === 0 && (
+            <p className="text-slate-400 text-center py-4">No analytics data available</p>
+          )}
         </div>
       </div>
 
-      {/* Last Updated */}
       <div className="mt-4 pt-4 border-t border-slate-700/50">
         <p className="text-xs text-slate-500 text-center">
-          Last updated: {new Date(analyticsData.timestamp).toLocaleTimeString()}
+          Last updated: {new Date(analyticsData.timestamp).toLocaleString()} • 
+          Time range: {timeRanges.find(r => r.value === timeRange)?.label}
         </p>
       </div>
     </div>
@@ -332,14 +460,12 @@ const MetricCard = ({ icon: Icon, label, value, color }: MetricCardProps) => (
   </div>
 );
 
-// Updated Hero Header Component with Create Button
+// Hero Header Component
 const HeroHeader = ({ onAddClick }: { onAddClick: () => void }) => (
   <div className="relative mb-12 overflow-hidden">
-    {/* Animated background gradient */}
     <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 blur-3xl" />
     <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/50 to-slate-900" />
     
-    {/* Content */}
     <div className="relative py-12 text-center">
       <div className="mb-4 inline-block">
         <div className="px-4 py-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-full text-blue-300 text-sm font-medium">
@@ -395,7 +521,16 @@ const ErrorState = ({ error }: { error: Error }) => (
 // Main Component
 const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingUrl, setEditingUrl] = useState<UrlLink | null>(null);
+  const [timeRange, setTimeRange] = useState("all");
   const queryClient = useQueryClient();
+
+  const timeRanges: TimeRange[] = [
+    { label: "Last 24 Hours", value: "24h" },
+    { label: "Last 7 Days", value: "7d" },
+    { label: "Last 30 Days", value: "30d" },
+    { label: "All Time", value: "all" },
+  ];
 
   const { data: linksData, isLoading: linksLoading, error: linksError } = useQuery({
     queryKey: ["links"],
@@ -408,7 +543,7 @@ const Index = () => {
   });
 
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useQuery({
-    queryKey: ["analytics"],
+    queryKey: ["analytics", timeRange],
     queryFn: async () => {
       const response = await fetch(`${API_URL}/analytics/urls`);
       if (!response.ok) throw new Error("Failed to fetch analytics");
@@ -417,7 +552,7 @@ const Index = () => {
     refetchInterval: 15000,
   });
 
-  // Static data (fallbacks)
+  // Static data
   const staticSystemStatus = {
     cost: "$2-5/month",
     uptime: "99.95%",
@@ -446,14 +581,39 @@ const Index = () => {
     { shortUrl: "portfolio", longUrl: `${API_URL}/go/portfolio`, title: "Portfolio" },
   ];
 
-  // Transform API data
-  const urlLinks = linksData?.available_short_urls 
-    ? Object.entries(linksData.available_short_urls).map(([shortUrl, longUrl]) => ({
-        shortUrl,
-        longUrl: `${API_URL}/go/${shortUrl}`,
-        title: shortUrl.charAt(0).toUpperCase() + shortUrl.slice(1)
-      }))
-    : staticUrlLinks;
+  // Transform API data - separate system URLs from custom URLs
+  const systemLinks = staticUrlLinks;
+  const customLinks = linksData?.available_short_urls 
+    ? Object.entries(linksData.available_short_urls)
+        .filter(([shortUrl]) => !staticUrlLinks.find(link => link.shortUrl === shortUrl))
+        .map(([shortUrl, longUrl]) => ({
+          shortUrl,
+          longUrl: `${API_URL}/go/${shortUrl}`,
+          title: shortUrl.charAt(0).toUpperCase() + shortUrl.slice(1),
+          isCustom: true
+        }))
+    : [];
+
+  const allLinks = [...systemLinks, ...customLinks];
+
+  const handleEditUrl = (link: UrlLink) => {
+    setEditingUrl(link);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleDeleteUrl = async (shortUrl: string) => {
+    if (window.confirm(`Are you sure you want to delete ${shortUrl}?`)) {
+      // TODO: Implement delete functionality in Lambda
+      console.log("Delete URL:", shortUrl);
+      // For now, just refetch links
+      queryClient.invalidateQueries({ queryKey: ["links"] });
+    }
+  };
+
+  const handleUrlCreated = () => {
+    setEditingUrl(null);
+    queryClient.invalidateQueries({ queryKey: ["links"] });
+  };
 
   if (linksLoading || analyticsLoading) {
     return <LoadingState />;
@@ -466,17 +626,21 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Hero Header */}
-        <HeroHeader onAddClick={() => setIsCreateModalOpen(true)} />
+        <HeroHeader onAddClick={() => {
+          setEditingUrl(null);
+          setIsCreateModalOpen(true);
+        }} />
 
-        {/* Create URL Modal */}
         <CreateUrlModal 
           isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreated={() => console.log("URL created!")}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setEditingUrl(null);
+          }}
+          onCreated={handleUrlCreated}
+          editingUrl={editingUrl}
         />
 
-        {/* Top Metrics Bar */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           <MetricCard 
             icon={Zap} 
@@ -504,25 +668,35 @@ const Index = () => {
           />
         </div>
 
-        {/* Main Content Grid */}
         <div className="space-y-8">
-          {/* URL Shortener - Full Width */}
           <div>
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <span className="text-2xl">🔗</span> Quick Links
+              {customLinks.length > 0 && (
+                <span className="text-sm text-slate-400 ml-2">
+                  ({systemLinks.length} system, {customLinks.length} custom)
+                </span>
+              )}
             </h2>
-            <UrlShortener links={urlLinks} />
+            <UrlShortener 
+              links={allLinks} 
+              onEdit={handleEditUrl}
+              onDelete={handleDeleteUrl}
+            />
           </div>
 
-          {/* Analytics Dashboard */}
           <div>
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <span className="text-2xl">📈</span> Analytics
             </h2>
-            <AnalyticsDashboard analyticsData={analyticsData} />
+            <AnalyticsDashboard 
+              analyticsData={analyticsData} 
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+              timeRanges={timeRanges}
+            />
           </div>
 
-          {/* Two Column Layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -539,7 +713,6 @@ const Index = () => {
             </div>
           </div>
 
-          {/* API Documentation */}
           <div>
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <span className="text-2xl">📚</span> API Documentation
@@ -548,7 +721,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-16 text-center border-t border-slate-800/50 pt-8">
           <p className="text-slate-500 text-sm">
             Last updated: {new Date().toLocaleTimeString()} • Built with AWS Lambda, API Gateway & DynamoDB
