@@ -2,7 +2,8 @@ exports.handler = async (event) => {
     console.log('🚀 Homelab API with Analytics');
     
     const path = event.rawPath || event.path || "/";
-    console.log('Path:', path);
+    const httpMethod = event.requestContext?.http?.method || event.httpMethod || 'GET';
+    console.log('Path:', path, 'Method:', httpMethod);
     
     try {
         // ANALYTICS ENDPOINTS
@@ -41,13 +42,117 @@ exports.handler = async (event) => {
         
         // Personal URL Shortener
         const shortUrls = {
-            'github': 'https://github.com',
-            'linkedin': 'https://linkedin.com',
+            'github': 'https://github.com/terrence0909',
+            'linkedin': 'https://www.linkedin.com/in/tshepo-tau-8ab6b4b4',
             'resume': 'https://docs.google.com/document/d/your-resume-link',
             'portfolio': 'https://your-portfolio.com',
             'twitter': 'https://twitter.com',
-            'email': 'mailto:your.email@domain.com'
+            'email': 'mailto:tauterrence09@gmail.com'
         };
+        
+        // TRACK CLICK ENDPOINT (POST)
+        if (path === '/track' && httpMethod === 'POST') {
+            let body;
+            try {
+                body = JSON.parse(event.body);
+            } catch (e) {
+                body = {};
+            }
+            
+            const shortCode = body.shortUrl;
+            if (shortCode) {
+                await trackClick(shortCode, event);
+                return {
+                    statusCode: 200,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: true,
+                        message: "Click tracked",
+                        slug: shortCode
+                    })
+                };
+            }
+            
+            return {
+                statusCode: 400,
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                },
+                body: JSON.stringify({
+                    success: false,
+                    error: "Missing shortUrl parameter"
+                })
+            };
+        }
+        
+        // CREATE NEW SHORT URL ENDPOINT (POST)
+        if (path === '/links' && httpMethod === 'POST') {
+            let body;
+            try {
+                body = JSON.parse(event.body);
+            } catch (e) {
+                body = {};
+            }
+            
+            const { shortUrl, longUrl } = body;
+            
+            if (!shortUrl || !longUrl) {
+                return {
+                    statusCode: 400,
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                    },
+                    body: JSON.stringify({
+                        success: false,
+                        error: "Missing shortUrl or longUrl parameters"
+                    })
+                };
+            }
+            
+            // In a real implementation, you'd save this to DynamoDB
+            // For now, just return success
+            return {
+                statusCode: 200,
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                },
+                body: JSON.stringify({
+                    success: true,
+                    message: "Short URL created",
+                    shortUrl: shortUrl,
+                    longUrl: longUrl,
+                    shortLink: `https://${event.requestContext?.domainName}/go/${shortUrl}`
+                })
+            };
+        }
+        
+        // CORS PREFLIGHT HANDLER
+        if (httpMethod === 'OPTIONS') {
+            return {
+                statusCode: 200,
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                    "Access-Control-Max-Age": "86400"
+                },
+                body: ''
+            };
+        }
         
         // URL Shortener - WITH CLICK TRACKING (FIXED VERSION)
         if (path.startsWith('/go/')) {
@@ -96,7 +201,7 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
                 body: JSON.stringify({
-                    status: "�� All Systems Operational",
+                    status: "🟢 All Systems Operational",
                     cost_breakdown: {
                         lambda: "$0.50/month",
                         api_gateway: "$1.20/month", 
@@ -178,7 +283,9 @@ exports.handler = async (event) => {
                     'GET /test-dynamodb': 'Test DynamoDB connection',
                     'GET /analytics/clicks': 'Get click analytics',
                     'GET /analytics/urls': 'Get URL statistics',
-                    'GET /analytics/url/{slug}': 'Get detailed URL analytics'
+                    'GET /analytics/url/{slug}': 'Get detailed URL analytics',
+                    'POST /track': 'Track a click',
+                    'POST /links': 'Create new short URL'
                 },
                 architecture: {
                     compute: "AWS Lambda",
